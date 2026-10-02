@@ -5,7 +5,7 @@
 #
 
 import sqlite3
-from datetime import date
+from datetime import date, timedelta, datetime
 from models import Application, ApplicationStatus
 
 DATABASE_PATH = "data/applications.db"
@@ -27,7 +27,8 @@ def create_database():
             deadline TEXT,
             location TEXT,
             url TEXT,
-            notes TEXT
+            notes TEXT,
+            created_at TEXT NOT NULL
         )
     """)
     connection.commit() # commit to database
@@ -45,9 +46,10 @@ def add_application(application: Application):
                 deadline,
                 location,
                 url,
-                notes
+                notes,
+                created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         cursor = connection.cursor()
         values = (
@@ -58,7 +60,8 @@ def add_application(application: Application):
             application.deadline.isoformat() if application.deadline else None,
             application.location,
             application.url,
-            application.notes
+            application.notes,
+            application.created_at.isoformat()
         )
 
         cursor.execute(sql, values)
@@ -78,7 +81,8 @@ def get_applications():
                 deadline,
                 location,
                 url,
-                notes
+                notes,
+                created_at
             FROM applications
         """
 
@@ -100,7 +104,8 @@ def get_application(application_id):
                 deadline,
                 location,
                 url,
-                notes
+                notes,
+                created_at
             FROM applications
             WHERE id = ?
         """
@@ -164,6 +169,7 @@ def row_to_application(row):
         location=row[6],
         url=row[7],
         notes=row[8],
+        created_at=datetime.fromisoformat(row[9]),
     )
 
 def number_of_applications():
@@ -176,16 +182,87 @@ def number_of_applications():
         cursor.execute(sql)
         return cursor.fetchone()[0]
 
+def count_applications_this_week():
+    today = date.today()
+
+    # weekday(): Monday = 0, Tuesday = 1, ..., Sunday = 6
+    start_of_week = today - timedelta(days=today.weekday())
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+
+        sql = """
+            SELECT COUNT(*)
+            FROM applications
+            WHERE created_at >= ?
+        """
+
+        cursor.execute(sql, (start_of_week.isoformat(),))
+
+        return cursor.fetchone()[0]
+
+# function to retrieve the number of applications in each Application Status
+def get_pipeline_counts():
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+        sql = """
+            SELECT status, COUNT(*)
+            FROM applications
+            GROUP BY status
+        """
+        cursor.execute(sql)
+        results = cursor.fetchall()
+        return {status: count for status, count in results}
+
+def get_upcoming_applications():
+    today = date.today().isoformat()
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+
+        sql = """
+            SELECT organisation, job_title, deadline
+            FROM applications
+            WHERE deadline IS NOT NULL
+                AND deadline >= ?
+            ORDER BY deadline ASC
+            LIMIT 3
+        """
+
+        cursor.execute(sql, (today,))
+        return cursor.fetchall()
+
+def add_created_at_column():
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+
+        try:
+            cursor.execute("""
+                ALTER TABLE applications
+                ADD COLUMN created_at TEXT
+            """)
+            print("Added created_at column.")
+
+        except sqlite3.OperationalError as error:
+            if "duplicate column name" in str(error):
+                print("created_at column already exists.")
+            else:
+                raise
+
+def update_existing_created_at():
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            UPDATE applications
+            SET created_at = CURRENT_TIMESTAMP
+            WHERE created_at IS NULL
+        """)
+
+        print(f"Updated {cursor.rowcount} applications.")
+
 def main():
-    create_database()
-
-    print("All current applications:")
-
-    applications = get_applications()
-
-    for application in applications:
-        print(application)
-
+    pass
 
 if __name__ == "__main__":
     main()

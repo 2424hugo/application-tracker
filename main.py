@@ -9,11 +9,13 @@ from database import (
     delete_application,
     number_of_applications,
 )
+from dashboard import display_dashboard
 from datetime import date
 from models import Application, ApplicationStatus
 
 def main():
     create_database()
+    display_dashboard()
 
     while True:
         print("\nApplication Tracker")
