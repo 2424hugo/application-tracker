@@ -6,7 +6,7 @@
 
 import sqlite3
 from datetime import date, timedelta, datetime
-from models import Application, ApplicationStatus
+from models import Application, ApplicationStatus, Event, EventType
 
 DATABASE_PATH = "data/applications.db"
 
@@ -14,6 +14,7 @@ DATABASE_PATH = "data/applications.db"
 def create_database():
     # connect to the database, if not there create it
     connection = sqlite3.connect(DATABASE_PATH)
+    connection.execute("PRAGMA foreign_keys = ON")
     # cursor object used to send SQL commands to database
     cursor = connection.cursor()
     # create the table for the database
@@ -29,6 +30,19 @@ def create_database():
             url TEXT,
             notes TEXT,
             created_at TEXT NOT NULL
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            application_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            event_date TEXT NOT NULL,
+            notes TEXT,
+            completed INTEGER NOT NULL DEFAULT 0
+                CHECK (completed IN (0, 1)),
+            FOREIGN KEY (application_id) REFERENCES applications(id)
         )
     """)
     connection.commit() # commit to database
@@ -62,6 +76,35 @@ def add_application(application: Application):
             application.url,
             application.notes,
             application.created_at.isoformat()
+        )
+
+        cursor.execute(sql, values)
+        return cursor.lastrowid
+
+# function to add events to the events table in the database
+def add_event(event: Event):
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.execute("PRAGMA foreign_keys = ON")
+
+        sql = """
+            INSERT INTO events (
+                application_id,
+                event_type,
+                title,
+                event_date,
+                notes,
+                completed
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+        """
+        cursor = connection.cursor()
+        values = (
+            event.application_id,
+            event.event_type.value,
+            event.title,
+            event.event_date.isoformat(),
+            event.notes,
+            event.completed
         )
 
         cursor.execute(sql, values)
@@ -115,6 +158,40 @@ def get_application(application_id):
 
     return row_to_application(row)
 
+def get_events(application_id):
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+
+        sql = """
+            SELECT id, application_id, event_type, title,
+                event_date, notes, completed
+            FROM events
+            WHERE application_id = ?
+            ORDER BY event_date, id
+        """
+
+        cursor.execute(sql, (application_id,))
+        rows = cursor.fetchall()
+    return [row_to_event(row) for row in rows]
+
+def get_event(event_id):
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+
+        sql = """
+            SELECT id, application_id, event_type, title,
+                event_date, notes, completed
+            FROM events
+            WHERE id = ?
+            ORDER BY event_date, id
+        """
+
+        cursor.execute(sql, (event_id,))
+        row = cursor.fetchone()
+    if row is None:
+        return None
+    return row_to_event(row)
+
 def update_application(application_id: int, application: Application):
     with sqlite3.connect(DATABASE_PATH) as connection:
         cursor = connection.cursor()
@@ -145,14 +222,52 @@ def update_application(application_id: int, application: Application):
         cursor.execute(sql, values)
         return cursor.rowcount
 
+def update_event(event_id: int, event: Event):
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+        sql = """
+            UPDATE events
+            SET event_type = ?,
+                title = ?,
+                event_date = ?,
+                notes = ?,
+                completed = ?
+            WHERE id = ?
+        """
+        values = (
+            event.event_type.value,
+            event.title,
+            event.event_date.isoformat(),
+            event.notes,
+            event.completed,
+            event_id
+
+        )
+        cursor.execute(sql, values)
+        return cursor.rowcount
+
 def delete_application(application_id):
     with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.execute("PRAGMA foreign_keys = ON")
+
         cursor = connection.cursor()
         sql = """
             DELETE FROM applications
             WHERE id = ?
         """
         cursor.execute(sql, (application_id,))
+        return cursor.rowcount # returns 1 if found and deleted
+
+def delete_event(event_id):
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.execute("PRAGMA foreign_keys = ON")
+
+        cursor = connection.cursor()
+        sql = """
+            DELETE FROM events
+            WHERE id = ?
+        """
+        cursor.execute(sql, (event_id,))
         return cursor.rowcount # returns 1 if found and deleted
 
 def row_to_application(row):
@@ -170,6 +285,17 @@ def row_to_application(row):
         url=row[7],
         notes=row[8],
         created_at=datetime.fromisoformat(row[9]),
+    )
+
+def row_to_event(row):
+    return Event(
+        id=row[0],
+        application_id=row[1],
+        event_type=EventType(row[2]),
+        title=row[3],
+        event_date=date.fromisoformat(row[4]),
+        notes=row[5],
+        completed=bool(row[6]),
     )
 
 def number_of_applications():
@@ -221,12 +347,38 @@ def get_upcoming_applications():
         cursor = connection.cursor()
 
         sql = """
-            SELECT organisation, job_title, deadline
+            SELECT id, organisation, job_title, deadline
             FROM applications
             WHERE deadline IS NOT NULL
                 AND deadline >= ?
+                AND status = ?
             ORDER BY deadline ASC
-            LIMIT 3
+            LIMIT 6
+        """
+
+        cursor.execute(sql, (today, ApplicationStatus.INTERESTED.value))
+        return cursor.fetchall()
+
+def get_upcoming_events():
+    today = date.today().isoformat()
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+
+        sql = """
+            SELECT applications.id,
+                events.id,
+                applications.organisation,
+                applications.job_title,
+                events.event_type,
+                events.title,
+                events.event_date
+            FROM events
+            JOIN applications ON events.application_id = applications.id
+            WHERE events.completed = 0
+            AND events.event_date >= ?
+            ORDER BY events.event_date, events.id
+            LIMIT 6
         """
 
         cursor.execute(sql, (today,))

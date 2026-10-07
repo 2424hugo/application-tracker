@@ -16,17 +16,22 @@ class ApplicationStatus(Enum):
     OFFER = "Offer"
     REJECTED = "Rejected"
 
-# Too be added later, a flexible event that can be added to an application
-"""
+class EventType(Enum):
+    ONLINE_ASSESSMENT = "Online Assessment"
+    INTERVIEW = "Interview"
+    FOLLOW_UP = "Follow-up"
+    EMAIL = "Email"
+    OTHER = "Other"
+
+@dataclass
 class Event:
-    id
-    application_id
-    event_type
-    title
-    due_date
-    completed
-"""
-    
+    application_id: int
+    event_type: EventType
+    title: str
+    event_date: date
+    notes: str = ""
+    completed: bool = False
+    id: int | None = None
 
 @dataclass
 class Application:
