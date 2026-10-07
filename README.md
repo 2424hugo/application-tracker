@@ -2,15 +2,13 @@
 
 A command-line Python application for tracking graduate job and PhD applications throughout the application process.
 
-The tracker stores applications in a local SQLite database and provides a dashboard summarising current activity, application stages, and upcoming deadlines.
+The tracker stores applications and their associated events in a local SQLite database. A dashboard summarises application stages and upcoming deadlines and activities.
 
-## Current Features
+## Application Features
 
-- Add new job or PhD applications
-- View all tracked applications
-- View the full details of an individual application
-- Update existing applications
-- Delete applications with confirmation
+- Add, view, update, and delete applications
+- View the full details and events of an individual application
+- Confirm before deleting an application
 - Track application status through:
   - Interested
   - Applied
@@ -29,17 +27,50 @@ The tracker stores applications in a local SQLite database and provides a dashbo
 - Automatically record when an application is added
 - Store application data persistently using SQLite
 
+## Application Events
+
+Each application can have any number of associated events.
+
+Supported event types:
+
+- Online Assessment
+- Interview
+- Follow-up
+- Email
+- Other
+
+Each event contains:
+
+- A unique event ID
+- The ID of its associated application
+- Event type
+- Title
+- Date
+- Notes
+- Completion state
+
+Event features:
+
+- Add events to existing applications
+- View events within an application's details
+- Mark events as completed
+- Edit event details
+- Reopen completed events
+- Clear event notes when editing
+- Delete events with confirmation
+
+Events are stored in a separate table linked to applications through a foreign key. Each event requires a date; times are not currently recorded.
+
+Completing an event does not automatically change the application's status.
+
 ## Dashboard
 
-The application displays a dashboard when it starts.
-
-The dashboard currently shows:
+The dashboard appears when the application starts and shows:
 
 - Number of active applications
 - Number of applications added during the current week
-- Application pipeline counts for each status
-- A simple visual bar for each pipeline stage
-- The three nearest upcoming application deadlines
+- Application pipeline counts with visual bars
+- The three nearest upcoming activities, ordered by date
 
 Example:
 
@@ -58,13 +89,43 @@ Online Assessment      0
 Interview              0
 Offer                   0
 Rejected                0
+```
+UPCOMING combines:
 
+- Application deadlines for applications with the status **Interested**
+- Pending events dated today or later, regardless of application status
+
+Completed events are excluded. Application deadlines disappear from UPCOMING when the application is no longer Interested.
+
+Each upcoming activity displays its application ID. Event entries also display their event ID, allowing them to be located for editing, completion, or deletion.
+
+Example:
+
+```text
 UPCOMING
 ───────────────────────────────────────────────────────
-23 Oct  Sellafield Ltd       Radiological Protection & Safety Graduate Programme
-02 Nov  MBDA                 Guidance, Control and Navigation Engineer - Graduate Programme 2027
-02 Nov  MBDA                 Weapon Systems Algorithms Engineer - Graduate Programme 2027
+10 Oct  [App ID: 5 | Event ID: 2] ORGANISATION — JOB TITLE
+        Online Assessment: Online Situational Judgement Test (SJT)
+23 Oct  [App ID: 3] ORGANISATION — JOB TITLE
+        Application Deadline
+02 Nov  [App ID: 5] ORGANISATION — JOB TITLE
+        Application Deadline
 ```
+
+The dashboard currently refreshes when the program starts. Restart the tracker to see changes reflected in the dashboard.
+
+## Application Menu
+
+1. Add application
+2. View all applications
+3. View application
+4. Update application
+5. Delete application
+6. Add event
+7. Complete event
+8. Update event
+9. Delete event
+10. Exit
 
 ## Project Structure
 
@@ -79,11 +140,13 @@ application-tracker/
 └── README.md
 ```
 
-- `main.py` — command-line interface and application menu
+- `main.py` — command-line interface and application/event menus
 - `dashboard.py` — dashboard calculations and display
-- `database.py` — SQLite database operations and queries
-- `models.py` — application data model and application status definitions
-- `data/applications.db` — local SQLite database
+- `database.py` — SQLite table creation, storage operations, and queries
+- `models.py` — application and event dataclasses, application statuses, and event types
+- `data/applications.db` — local SQLite database containing applications and events
+
+Database files are excluded from Git through `.gitignore`.
 
 ## Technologies
 
@@ -91,8 +154,9 @@ application-tracker/
 - SQLite
 - Python dataclasses
 - Python enums
-- Object-oriented programming
 - SQL
+
+The application uses Python's standard library and requires no third-party packages.
 
 ## Running the Application
 
@@ -103,28 +167,20 @@ git clone https://github.com/2424hugo/application-tracker.git
 cd application-tracker
 ```
 
-Run the application:
+Run from the project folder:
 
 ```bash
 python main.py
 ```
 
+Ensure the `data` folder exists before the first run. The application creates the database and required tables automatically.
+
+Enter dates in `YYYY-MM-DD` format and status or event type names exactly as displayed.
+
 ## Planned Features
 
-The next major feature is a flexible event system associated with applications.
-
-Each application will be able to have any number of events, such as:
-
-- Interviews
-- Online assessments
-- Application deadlines
-- Follow-ups
-- Emails or other correspondence
-
-Events will be linked to individual applications rather than adding a fixed field for every possible stage or activity.
-
-Future development can then use these events to expand the dashboard and provide a clearer view of upcoming application activity.
-
-Add an option to see progress made today, keeping track of changes for that day.
-
-When an application changes from Interested to Applied, the deadline is removed from UPCOMING.
+- Input validation for IDs, dates, statuses, and event types
+- An overdue section for pending events whose dates have passed
+- Dashboard refresh during use
+- A daily activity summary showing progress and changes
+- Clear handling of application deletion when associated events exist
