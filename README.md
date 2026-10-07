@@ -124,3 +124,7 @@ Each application will be able to have any number of events, such as:
 Events will be linked to individual applications rather than adding a fixed field for every possible stage or activity.
 
 Future development can then use these events to expand the dashboard and provide a clearer view of upcoming application activity.
+
+Add an option to see progress made today, keeping track of changes for that day.
+
+When an application changes from Interested to Applied, the deadline is removed from UPCOMING.
