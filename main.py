@@ -24,15 +24,15 @@ def main():
 
     while True:
         print("\nApplication Tracker")
-        print("1. Add application")
-        print("2. View all applications")
-        print("3. View application")
-        print("4. Update application")
-        print("5. Delete application")
-        print("6. Add event")
-        print("7. Complete event")
-        print("8. Update event")
-        print("9. Delete event")
+        print("1.  Add application")
+        print("2.  View all applications")
+        print("3.  View application")
+        print("4.  Update application")
+        print("5.  Delete application")
+        print("6.  Add event")
+        print("7.  Complete event")
+        print("8.  Update event")
+        print("9.  Delete event")
         print("10. Exit")
 
         choice = input("\nChoose an option: ")
@@ -77,12 +77,23 @@ def main():
 
             applications = get_applications()
 
-            for application in applications:
-                print(
-                    f"[{application.id}] "
-                    f"{application.organisation} — {application.job_title} "
-                    f"({application.status.value})"
-                )
+            if not applications:
+                print("No applications found.")
+            else:
+                current_status = None
+
+                for app in applications:
+                    # Print a heading when the status changes
+                    if app.status != current_status:
+                        current_status = app.status
+                        print(f"\n========== {app.status.value.upper()} ==========")
+
+                    # Print the application
+                    print(
+                        f"[{app.id}] {app.organisation} — "
+                        f"{app.job_title} ({app.status.value})"
+                    )
+                    print()
 
         elif choice == "3":
             print(f"\nThere are {number_of_applications()} applications being tracked")

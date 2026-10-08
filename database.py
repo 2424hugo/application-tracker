@@ -110,7 +110,8 @@ def add_event(event: Event):
         cursor.execute(sql, values)
         return cursor.lastrowid
 
-# fuction to retrive all applications
+
+# Function to retrieve all applications, ordered by status
 def get_applications():
     with sqlite3.connect(DATABASE_PATH) as connection:
         cursor = connection.cursor()
@@ -127,12 +128,24 @@ def get_applications():
                 notes,
                 created_at
             FROM applications
+            ORDER BY
+                CASE status
+                    WHEN 'Interested' THEN 1
+                    WHEN 'Applied' THEN 2
+                    WHEN 'Online Assessment' THEN 3
+                    WHEN 'Interview' THEN 4
+                    WHEN 'Offer' THEN 5
+                    WHEN 'Rejected' THEN 6
+                    ELSE 7
+                END,
+                id ASC
         """
 
         cursor.execute(sql)
         rows = cursor.fetchall()
 
     return [row_to_application(row) for row in rows]
+
 
 def get_application(application_id):
     with sqlite3.connect(DATABASE_PATH) as connection:
