@@ -3,6 +3,8 @@ from database import (
     get_pipeline_counts,
     get_upcoming_applications,
     get_upcoming_events,
+    get_overdue_applications,
+    get_overdue_events,
 )
 
 from datetime import date
@@ -27,6 +29,7 @@ def display_dashboard():
     active = count_active_applications(pipeline)
     this_week = count_applications_this_week()
     upcoming = []
+    overdue = []
 
     for application_id, organisation, job_title, deadline in get_upcoming_applications():
         upcoming.append(
@@ -42,6 +45,20 @@ def display_dashboard():
 
     upcoming.sort(key=lambda item: item[0])
     upcoming = upcoming[:6]
+
+    for application_id, organisation, job_title, deadline in get_overdue_applications():
+        overdue.append(
+            (deadline, application_id, None,
+            organisation, job_title, "Application Deadline")
+        )
+    
+    for application_id, event_id, organisation, job_title, event_type, title, event_date in get_overdue_events():
+        overdue.append(
+            (event_date, application_id, event_id,
+            organisation, job_title, f"{event_type}: {title}")
+        )
+
+    overdue.sort(key=lambda item: item[0], reverse=True)
 
     print()
     print("APPLICATION TRACKER")
@@ -78,6 +95,28 @@ def display_dashboard():
             f"{organisation} — {job_title}\n"
             f"        {activity}"
         )
+
+    print()
+
+    print("OVERDUE")
+    print("─" * 55)
+
+    if not overdue:
+        print("No overdue activities.")
+    else:
+        for activity_date, application_id, event_id, organisation, job_title, activity in overdue:
+            date_value = date.fromisoformat(activity_date)
+            days_overdue = (date.today() - date_value).days
+
+            ids = f"App ID: {application_id}"
+            if event_id is not None:
+                ids += f" | Event ID: {event_id}"
+
+            print(
+                f"{date_value:%d %b}  [{ids}] "
+                f"{organisation} — {job_title}\n"
+                f"        {activity} ({days_overdue} days overdue)"
+            )
         
     print()
 

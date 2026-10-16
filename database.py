@@ -397,6 +397,48 @@ def get_upcoming_events():
         cursor.execute(sql, (today,))
         return cursor.fetchall()
 
+def get_overdue_applications():
+    today = date.today().isoformat()
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+
+        sql = """
+            SELECT id, organisation, job_title, deadline
+            FROM applications
+            WHERE deadline IS NOT NULL
+                AND deadline < ?
+                AND status = ?
+            ORDER BY deadline ASC
+        """
+
+        cursor.execute(sql, (today, ApplicationStatus.INTERESTED.value))
+        return cursor.fetchall()
+
+def get_overdue_events():
+    today = date.today().isoformat()
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.cursor()
+
+        sql = """
+            SELECT applications.id AS application_id,
+                events.id AS event_id,
+                applications.organisation,
+                applications.job_title,
+                events.event_type,
+                events.title,
+                events.event_date
+            FROM events
+            JOIN applications ON events.application_id = applications.id
+            WHERE events.completed = 0
+            AND events.event_date < ?
+            ORDER BY events.event_date, events.id
+        """
+
+        cursor.execute(sql, (today, ))
+        return cursor.fetchall()
+
 def add_created_at_column():
     with sqlite3.connect(DATABASE_PATH) as connection:
         cursor = connection.cursor()
