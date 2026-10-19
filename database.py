@@ -481,6 +481,7 @@ def get_calendar_items():
             """
             SELECT
                 applications.id AS application_id,
+                NULL AS event_id,
                 applications.organisation,
                 applications.job_title,
                 applications.deadline AS due_date,
@@ -494,6 +495,7 @@ def get_calendar_items():
 
             SELECT
                 applications.id AS application_id,
+                events.id AS event_id,
                 applications.organisation,
                 applications.job_title,
                 events.event_date AS due_date,

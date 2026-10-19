@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
 )
 from PySide6.QtGui import QFont
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 
 from database import (
     get_pipeline_counts,
@@ -25,6 +25,8 @@ from dashboard import count_active_applications
 from models import ApplicationStatus
 
 class DashboardView(QWidget):
+    application_edit_requested = Signal(int)
+    event_edit_requested = Signal(int)
 
     def __init__(self):
         super().__init__()
@@ -79,6 +81,11 @@ class DashboardView(QWidget):
         dashboard_layout.addWidget(upcoming_heading)
         dashboard_layout.addWidget(self.separator())
         self.upcoming_table = self.create_event_table()
+        self.upcoming_table.cellDoubleClicked.connect(
+            lambda row, column: self.edit_clicked_item(
+                self.upcoming_table, row
+            )
+        )
         self.upcoming_table.setFixedHeight(220)
         dashboard_layout.addWidget(self.upcoming_table)
 
@@ -88,6 +95,11 @@ class DashboardView(QWidget):
         dashboard_layout.addWidget(overdue_heading)
         dashboard_layout.addWidget(self.separator())
         self.overdue_table = self.create_event_table()
+        self.overdue_table.cellDoubleClicked.connect(
+            lambda row, column: self.edit_clicked_item(
+                self.overdue_table, row
+            )
+        )
         self.overdue_table.setFixedHeight(220)
         dashboard_layout.addWidget(self.overdue_table)
 
@@ -163,6 +175,13 @@ class DashboardView(QWidget):
                     column,
                     QTableWidgetItem(value)
                 )
+            self.upcoming_table.item(row, 0).setData(
+                Qt.ItemDataRole.UserRole,
+                {
+                    "application_id": application_id,
+                    "event_id": event_id,
+                },
+            )
 
         overdue = []
         # Application deadlines
@@ -204,6 +223,13 @@ class DashboardView(QWidget):
                     column,
                     QTableWidgetItem(value)
                         )
+            self.overdue_table.item(row, 0).setData(
+                Qt.ItemDataRole.UserRole,
+                {
+                    "application_id": application_id,
+                    "event_id": event_id,
+                },
+            )
 
     def separator(self):
         separator = QFrame()
@@ -241,3 +267,21 @@ class DashboardView(QWidget):
         header.resizeSection(4, 105)  # Application ID
         # Return table
         return table
+
+    def edit_clicked_item(self, table, row):
+        date_item = table.item(row, 0)
+
+        if date_item is None:
+            return
+
+        record = date_item.data(Qt.ItemDataRole.UserRole)
+
+        if not record:
+            return
+
+        if record["event_id"] is not None:
+            self.event_edit_requested.emit(record["event_id"])
+        else:
+            self.application_edit_requested.emit(
+                record["application_id"]
+            )

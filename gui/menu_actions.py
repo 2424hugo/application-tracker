@@ -271,11 +271,27 @@ class MenuActions(QObject):
 
     def update_application(self):
         application = self.choose_application()
+
         if application is not None:
-            return self.save_dialog(
-                ApplicationDialog(self.window, application),
-                lambda updated: db.update_application(application.id, updated),
+            return self.edit_application(application.id)
+
+    def edit_application(self, application_id):
+        application = db.get_application(application_id)
+
+        if application is None:
+            raise ValueError(
+                "This application no longer exists. Refresh the page."
             )
+
+        return self.save_dialog(
+            ApplicationDialog(self.window, application),
+            lambda updated: db.update_application(
+                application.id, updated
+            ),
+        )
+    
+    def open_application_editor(self, application_id):
+        self.run(lambda: self.edit_application(application_id))
 
     def delete_application(self):
         application = self.choose_application()
@@ -308,11 +324,32 @@ class MenuActions(QObject):
 
     def update_event(self):
         application, event = self.choose_event()
+
         if event is not None:
-            return self.save_dialog(
-                EventDialog(self.window, application, event),
-                lambda updated: db.update_event(event.id, updated),
+            return self.edit_event(event.id)
+
+    def open_event_editor(self, event_id):
+        self.run(lambda: self.edit_event(event_id))
+
+    def edit_event(self, event_id):
+        event = db.get_event(event_id)
+
+        if event is None:
+            raise ValueError(
+                "This event no longer exists. Refresh the page."
             )
+
+        application = db.get_application(event.application_id)
+
+        if application is None:
+            raise ValueError(
+                "The event's application no longer exists."
+            )
+
+        return self.save_dialog(
+            EventDialog(self.window, application, event),
+            lambda updated: db.update_event(event.id, updated),
+        )
 
     def delete_event(self):
         application, event = self.choose_event()

@@ -88,6 +88,26 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
         self.menu_actions = MenuActions(self)
 
+        dashboard_page.application_edit_requested.connect(
+            self.menu_actions.open_application_editor
+        )
+
+        dashboard_page.event_edit_requested.connect(
+            self.menu_actions.open_event_editor
+        )
+
+        applications_page.application_edit_requested.connect(
+            self.menu_actions.open_application_editor
+        )
+
+        events_page.application_edit_requested.connect(
+            self.menu_actions.open_application_editor
+        )
+
+        events_page.event_edit_requested.connect(
+            self.menu_actions.open_event_editor
+        )
+
 
 
 if __name__ == '__main__':

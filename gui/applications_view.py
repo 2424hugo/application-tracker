@@ -9,13 +9,17 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QComboBox,
 )
-from models import ApplicationStatus
 from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, Signal
+
+from models import ApplicationStatus
 from database import (
     get_applications,
 )
 
 class ApplicationsView(QWidget):
+    application_edit_requested = Signal(int)
+
     def __init__(self):
         super().__init__()
 
@@ -52,6 +56,9 @@ class ApplicationsView(QWidget):
 
         # Table
         self.application_table = self.create_application_table()
+        self.application_table.cellDoubleClicked.connect(
+            self.edit_clicked_application
+        )
         application_layout.addWidget(self.application_table)
 
         self.setLayout(application_layout)
@@ -78,6 +85,11 @@ class ApplicationsView(QWidget):
                     column,
                     QTableWidgetItem(str(value))
                 )
+            self.application_table.item(row, 0).setData(
+                Qt.ItemDataRole.UserRole,
+                application.id,
+            )
+            
         self.filter_applications(self.search_bar.text())
 
     def create_application_table(self):
@@ -133,3 +145,16 @@ class ApplicationsView(QWidget):
             # Hide rows that do not match
             matches = search_matches and status_matches
             self.application_table.setRowHidden(row, not matches)
+
+    def edit_clicked_application(self, row, column):
+        id_item = self.application_table.item(row, 0)
+
+        if id_item is None:
+            return
+
+        application_id = id_item.data(
+            Qt.ItemDataRole.UserRole
+        )
+
+        if application_id is not None:
+            self.application_edit_requested.emit(application_id)

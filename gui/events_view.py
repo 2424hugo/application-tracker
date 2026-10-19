@@ -1,12 +1,13 @@
 from collections import defaultdict
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import (
     QCalendarWidget,
     QHBoxLayout,
     QLabel,
     QListWidget,
+    QListWidgetItem,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -68,6 +69,9 @@ class EventsCalendar(QCalendarWidget):
         painter.restore()
 
 class EventsView(QWidget):
+    application_edit_requested = Signal(int)
+    event_edit_requested = Signal(int)
+
     def __init__(self):
         super().__init__()
 
@@ -107,6 +111,9 @@ class EventsView(QWidget):
 
         self.details_list = QListWidget()
         self.details_list.setWordWrap(True)
+        self.details_list.itemDoubleClicked.connect(
+            self.edit_clicked_item
+        )
         layout.addWidget(self.details_list, stretch=1)
 
         self.refresh()
@@ -143,10 +150,20 @@ class EventsView(QWidget):
             return
 
         for item in items:
-            self.details_list.addItem(
+            list_item = QListWidgetItem(
                 f"{item['item_type']} — {item['title']}\n"
                 f"{item['organisation']} — {item['job_title']}"
             )
+
+            list_item.setData(
+                Qt.ItemDataRole.UserRole,
+                {
+                    "application_id": item["application_id"],
+                    "event_id": item["event_id"],
+                },
+            )
+
+            self.details_list.addItem(list_item)
 
     def select_today(self):
         self.calendar.setSelectedDate(QDate.currentDate())
@@ -156,3 +173,17 @@ class EventsView(QWidget):
         super().showEvent(event)
         # Reload whenever the user opens this page.
         self.refresh()
+
+    def edit_clicked_item(self, item):
+        record = item.data(Qt.ItemDataRole.UserRole)
+
+        # The "No deadlines..." message has no attached record.
+        if not record:
+            return
+
+        if record["event_id"] is not None:
+            self.event_edit_requested.emit(record["event_id"])
+        else:
+            self.application_edit_requested.emit(
+                record["application_id"]
+            )
