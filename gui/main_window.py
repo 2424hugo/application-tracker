@@ -2,7 +2,6 @@ from PySide6.QtWidgets import (
     QMainWindow, 
     QWidget,
     QVBoxLayout,
-    QLabel,
     QHBoxLayout,
     QPushButton,
     QStackedWidget,
@@ -11,6 +10,8 @@ from PySide6.QtGui import QFont
 
 from .dashboard_view import DashboardView
 from .applications_view import ApplicationsView
+from .events_view import EventsView
+from .menu_actions import MenuActions
 
 class MainWindow(QMainWindow):
 
@@ -51,17 +52,7 @@ class MainWindow(QMainWindow):
         applications_page = ApplicationsView()
 
         # Events page
-        events_page = QWidget()
-        events_layout = QVBoxLayout()
-        events_contents = QLabel("Events Info")
-        events_layout.addWidget(events_contents)
-        events_layout.addStretch()
-        events_page.setLayout(events_layout)
-
-        content_layout.addWidget(self.pages)
-
-        content_widget = QWidget()
-        content_widget.setLayout(content_layout)
+        events_page = EventsView()
 
         # Set buttons
         dashboard_button.clicked.connect(
@@ -80,6 +71,12 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(applications_page)
         self.pages.addWidget(events_page)
 
+        # Place the stacked pages inside the content widget
+        content_layout.addWidget(self.pages)
+
+        content_widget = QWidget()
+        content_widget.setLayout(content_layout)
+
         # Adding content_widget and sidebar_widget to main_layout
         main_layout.addWidget(sidebar_widget, stretch=1)
         main_layout.addWidget(content_widget, stretch=4)
@@ -89,6 +86,7 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(main_layout)
         
         self.setCentralWidget(central_widget)
+        self.menu_actions = MenuActions(self)
 
 
 

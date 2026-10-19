@@ -263,13 +263,18 @@ def delete_application(application_id):
     with sqlite3.connect(DATABASE_PATH) as connection:
         connection.execute("PRAGMA foreign_keys = ON")
 
-        cursor = connection.cursor()
-        sql = """
-            DELETE FROM applications
-            WHERE id = ?
-        """
-        cursor.execute(sql, (application_id,))
-        return cursor.rowcount # returns 1 if found and deleted
+        # Delete linked events before deleting their application.
+        connection.execute(
+            "DELETE FROM events WHERE application_id = ?",
+            (application_id,),
+        )
+
+        cursor = connection.execute(
+            "DELETE FROM applications WHERE id = ?",
+            (application_id,),
+        )
+
+        return cursor.rowcount
 
 def delete_event(event_id):
     with sqlite3.connect(DATABASE_PATH) as connection:
@@ -467,6 +472,44 @@ def update_existing_created_at():
         """)
 
         print(f"Updated {cursor.rowcount} applications.")
+
+def get_calendar_items():
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.row_factory = sqlite3.Row
+
+        rows = connection.execute(
+            """
+            SELECT
+                applications.id AS application_id,
+                applications.organisation,
+                applications.job_title,
+                applications.deadline AS due_date,
+                'Application Deadline' AS item_type,
+                'Submit application' AS title
+            FROM applications
+            WHERE applications.deadline IS NOT NULL
+                AND applications.status = ?
+
+            UNION ALL
+
+            SELECT
+                applications.id AS application_id,
+                applications.organisation,
+                applications.job_title,
+                events.event_date AS due_date,
+                events.event_type AS item_type,
+                events.title
+            FROM events
+            JOIN applications
+                ON events.application_id = applications.id
+            WHERE events.completed = 0
+
+            ORDER BY due_date, organisation, title
+            """,
+            (ApplicationStatus.INTERESTED.value,),
+        ).fetchall()
+
+        return [dict(row) for row in rows]
 
 def main():
     pass
