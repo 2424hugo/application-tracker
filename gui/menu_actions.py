@@ -1,13 +1,16 @@
 from dataclasses import replace
 from math import isfinite
 
-from PySide6.QtCore import QDate, QObject
+from PySide6.QtCore import QDate, QObject, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox,
-    QFormLayout, QInputDialog, QLineEdit, QMessageBox,
-    QPlainTextEdit, QVBoxLayout,
+    QAbstractItemView, QCheckBox, QComboBox, QDateEdit,
+    QDialog, QDialogButtonBox, QFormLayout, QHeaderView,
+    QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+    QMessageBox, QPlainTextEdit, QPushButton,
+    QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
+
 
 import database as db
 from models import Application, ApplicationStatus, Event, EventType
@@ -50,11 +53,97 @@ class RecordDialog(QDialog):
 
 
 class ApplicationDialog(RecordDialog):
-    def __init__(self, parent, application=None):
+    def __init__(self, parent, application=None, selected_event_id=None):
         super().__init__(
             "Update application" if application else "Add application", parent
         )
         self.original = application
+
+        self.linked_events_changed = False
+
+        # Only display events for applications already saved.
+        if application is not None and application.id is not None:
+            self.resize(850, 720)
+
+            layout = self.layout()
+
+            heading = QLabel("Linked events")
+            layout.insertWidget(1, heading)
+
+            self.events_table = QTableWidget(0, 4)
+            self.events_table.setHorizontalHeaderLabels([
+                "Date",
+                "Type",
+                "Title",
+                "Status",
+            ])
+
+            self.events_table.setEditTriggers(
+                QAbstractItemView.EditTrigger.NoEditTriggers
+            )
+            self.events_table.setSelectionBehavior(
+                QAbstractItemView.SelectionBehavior.SelectRows
+            )
+            self.events_table.setSelectionMode(
+                QAbstractItemView.SelectionMode.SingleSelection
+            )
+
+            header = self.events_table.horizontalHeader()
+            header.setSectionResizeMode(
+                QHeaderView.ResizeMode.ResizeToContents
+            )
+            header.setSectionResizeMode(
+                2, QHeaderView.ResizeMode.Stretch
+            )
+
+            self.events_table.setMinimumHeight(180)
+            self.events_table.setMaximumHeight(240)
+
+            self.events_table.cellDoubleClicked.connect(
+                self.edit_linked_event
+            )
+
+            layout.insertWidget(2, self.events_table)
+
+            
+            # Remove the original Save / Cancel button box
+            button_box = self.findChild(QDialogButtonBox)
+            layout.removeWidget(button_box)
+            button_box.hide()
+            button_box.deleteLater()
+
+            # Create a new bottom button row
+            buttons_layout = QHBoxLayout()
+            buttons_layout.addStretch()
+
+            # Save button
+            save_button = QPushButton("Save")
+            save_button.clicked.connect(self.accept)
+            save_button.setDefault(True)
+
+            # Add Event button
+            add_button = QPushButton("Add event")
+            add_button.clicked.connect(self.add_linked_event)
+
+            # Cancel button
+            cancel_button = QPushButton("Cancel")
+            cancel_button.clicked.connect(self.reject)
+
+            # Add buttons in the desired order
+            buttons_layout.addWidget(save_button)
+            buttons_layout.addWidget(add_button)
+            buttons_layout.addWidget(cancel_button)
+
+            # Position beneath the linked events table
+            layout.addLayout(buttons_layout)
+
+
+            self.refresh_linked_events()
+
+            if selected_event_id is not None:
+                self.select_linked_event(selected_event_id)
+
+
         self.organisation = QLineEdit()
         self.job_title = QLineEdit()
         self.status = QComboBox()
@@ -93,6 +182,113 @@ class ApplicationDialog(RecordDialog):
             self.location.setText(application.location or "")
             self.url.setText(application.url or "")
             self.notes.setPlainText(application.notes or "")
+
+
+    def refresh_linked_events(self):
+        events = db.get_events(self.original.id)
+
+        self.events_table.setRowCount(0)
+
+        for event in events:
+            row = self.events_table.rowCount()
+            self.events_table.insertRow(row)
+
+            values = [
+                event.event_date.strftime("%d/%m/%Y"),
+                event.event_type.value,
+                event.title,
+                "Completed" if event.completed else "Pending",
+            ]
+
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(value)
+
+                if column == 0:
+                    item.setData(
+                        Qt.ItemDataRole.UserRole,
+                        event.id,
+                    )
+
+                self.events_table.setItem(row, column, item)
+
+
+    def select_linked_event(self, event_id):
+        for row in range(self.events_table.rowCount()):
+            item = self.events_table.item(row, 0)
+
+            if item.data(Qt.ItemDataRole.UserRole) == event_id:
+                self.events_table.selectRow(row)
+                self.events_table.scrollToItem(item)
+                return
+
+
+    def save_linked_event(self, dialog, save):
+        while dialog.exec() == QDialog.DialogCode.Accepted:
+            try:
+                result = save(dialog.result_record)
+
+                if not result:
+                    raise ValueError(
+                        "The event no longer exists."
+                    )
+
+            except Exception as error:
+                QMessageBox.critical(
+                    dialog,
+                    "Could not save event",
+                    str(error),
+                )
+                continue
+
+            self.linked_events_changed = True
+            self.refresh_linked_events()
+            return result
+
+        return None
+
+
+    def add_linked_event(self):
+        dialog = EventDialog(self, self.original)
+
+        event_id = self.save_linked_event(
+            dialog,
+            db.add_event,
+        )
+
+        if event_id is not None:
+            self.select_linked_event(event_id)
+
+
+    def edit_linked_event(self, row, column):
+        item = self.events_table.item(row, 0)
+
+        if item is None:
+            return
+
+        event_id = item.data(Qt.ItemDataRole.UserRole)
+        event = db.get_event(event_id)
+
+        if event is None:
+            QMessageBox.warning(
+                self,
+                "Event not found",
+                "This event no longer exists.",
+            )
+            self.refresh_linked_events()
+            return
+
+        dialog = EventDialog(self, self.original, event)
+
+        result = self.save_linked_event(
+            dialog,
+            lambda updated: db.update_event(
+                event.id, updated
+            ),
+        )
+
+        if result is not None:
+            self.select_linked_event(event.id)
+
 
     def build_record(self):
         organisation = self.organisation.text().strip()
@@ -275,7 +471,8 @@ class MenuActions(QObject):
         if application is not None:
             return self.edit_application(application.id)
 
-    def edit_application(self, application_id):
+
+    def edit_application(self, application_id, selected_event_id=None):
         application = db.get_application(application_id)
 
         if application is None:
@@ -283,12 +480,21 @@ class MenuActions(QObject):
                 "This application no longer exists. Refresh the page."
             )
 
-        return self.save_dialog(
-            ApplicationDialog(self.window, application),
+        dialog = ApplicationDialog(
+            self.window,
+            application,
+            selected_event_id=selected_event_id,
+        )
+
+        saved = self.save_dialog(
+            dialog,
             lambda updated: db.update_application(
                 application.id, updated
             ),
         )
+
+        return saved or dialog.linked_events_changed
+
     
     def open_application_editor(self, application_id):
         self.run(lambda: self.edit_application(application_id))
@@ -328,8 +534,26 @@ class MenuActions(QObject):
         if event is not None:
             return self.edit_event(event.id)
 
+
     def open_event_editor(self, event_id):
-        self.run(lambda: self.edit_event(event_id))
+        self.run(
+            lambda: self.edit_application_for_event(event_id)
+        )
+
+
+    def edit_application_for_event(self, event_id):
+        event = db.get_event(event_id)
+
+        if event is None:
+            raise ValueError(
+                "This event no longer exists. Refresh the page."
+            )
+
+        return self.edit_application(
+            event.application_id,
+            selected_event_id=event.id,
+        )
+
 
     def edit_event(self, event_id):
         event = db.get_event(event_id)
